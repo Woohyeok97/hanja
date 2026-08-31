@@ -45,6 +45,24 @@ export function lookup(char: string): HanjaEntry | undefined {
   return byChar.get(char.normalize("NFC"));
 }
 
+// origin이 순수 한자(CJK 통합/호환 한자)로만 구성됐는지 판별.
+// 표준국어대사전 API의 origin 필드는 한자 표기 전용이 아니라 외래
+// 인명/지명 등 원어 전체를 담는 범용 필드라, 로마자 인명(예: "Dorie,
+// Pierre Henri")도 섞여 들어올 수 있어 이를 걸러내는 데 쓰인다.
+const HANJA_ONLY_PATTERN = /^[一-鿿豈-﫿]+$/;
+
+export function isHanjaOnly(text: string): boolean {
+  return HANJA_ONLY_PATTERN.test(text);
+}
+
+// 검색어가 완성형 한글 음절로만 구성됐는지 판별.
+// 숫자, 영어, 자모(ㄱㄴㄷ), 특수문자, 공백을 포함한 문장은 전부 걸러진다.
+const HANGUL_WORD_PATTERN = /^[가-힣]+$/;
+
+export function isHangulWord(text: string): boolean {
+  return HANGUL_WORD_PATTERN.test(text);
+}
+
 // 한자 한 글자 + 그 자리의 한글 독음 → 훈음 선택
 export function matchOne(
   char: string,
