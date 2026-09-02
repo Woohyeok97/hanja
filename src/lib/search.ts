@@ -1,34 +1,13 @@
-import { NextRequest } from "next/server";
-import { isHanjaOnly, matchWord, type Match } from "@/lib/hanja";
+import { isHanjaOnly, matchWord } from "@/lib/hanja";
+import type { SearchResponse, SearchResult } from "@/types/search";
 
-export type SearchResult = {
-  word: string;
-  sup_no: string;
-  origin: string;
-  pos: string;
-  definition: string;
-  matches: Match[];
-};
+const trim = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
-// "not_found"  : stdict가 항목 자체를 못 줌 (오타·신조어·미등재 등)
-// "native_korean": 항목은 있지만 전부 한자 표기가 없음 (순우리말)
-export type SearchApiResponse = {
-  results: SearchResult[];
-  reason?: "not_found" | "native_korean";
-};
-
-const trim = (s: unknown) => (typeof s === "string" ? s.trim() : "");
-
-export async function GET(req: NextRequest) {
-  const query = req.nextUrl.searchParams.get("query")?.trim();
-  if (!query) {
-    return Response.json({ results: [] } satisfies SearchApiResponse);
-  }
-
+export async function searchHanja(query: string): Promise<SearchResponse> {
   const key = process.env.STDICT_API_KEY;
   if (!key) {
     console.error("[search] STDICT_API_KEY missing");
-    return Response.json({ error: "config" }, { status: 500 });
+    return { results: [], reason: "upstream" };
   }
 
   // stdict API 자체의 파라미터 이름은 "q"로 고정되어 있어(외부 계약) 그대로 둔다.
@@ -36,43 +15,32 @@ export async function GET(req: NextRequest) {
 
   let text: string;
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { next: { revalidate: 86400 } });
     if (!res.ok) {
       console.error(`[search] stdict responded ${res.status}`);
-      return Response.json({ error: "upstream" }, { status: 502 });
+      return { results: [], reason: "upstream" };
     }
     text = await res.text();
   } catch (err) {
     console.error("[search] stdict fetch failed", err);
-    return Response.json({ error: "upstream" }, { status: 502 });
+    return { results: [], reason: "upstream" };
   }
 
   // 결과가 없는 검색어는 JSON이 아니라 빈 본문(길이 0)으로 온다. 이건 오류가 아니라
   // "결과 없음" 신호이므로 별도로 처리한다.
-  if (!text) {
-    return Response.json({
-      results: [],
-      reason: "not_found",
-    } satisfies SearchApiResponse);
-  }
+  if (!text) return { results: [], reason: "not_found" };
 
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch (err) {
     console.error("[search] stdict returned invalid JSON", err);
-    return Response.json({ error: "upstream" }, { status: 502 });
+    return { results: [], reason: "upstream" };
   }
 
   const rawItem = (data as { channel?: { item?: unknown } })?.channel?.item;
   const items = Array.isArray(rawItem) ? rawItem : rawItem ? [rawItem] : [];
-
-  if (items.length === 0) {
-    return Response.json({
-      results: [],
-      reason: "not_found",
-    } satisfies SearchApiResponse);
-  }
+  if (items.length === 0) return { results: [], reason: "not_found" };
 
   const results: SearchResult[] = items
     .map((item: Record<string, unknown>) => {
@@ -91,12 +59,7 @@ export async function GET(req: NextRequest) {
     // origin이 한자 표기가 아닌 표제어(순우리말, 외래 인명 등)는 제외
     .filter((result: SearchResult) => isHanjaOnly(result.origin));
 
-  if (results.length === 0) {
-    return Response.json({
-      results: [],
-      reason: "native_korean",
-    } satisfies SearchApiResponse);
-  }
+  if (results.length === 0) return { results: [], reason: "native_korean" };
 
-  return Response.json({ results } satisfies SearchApiResponse);
+  return { results };
 }
