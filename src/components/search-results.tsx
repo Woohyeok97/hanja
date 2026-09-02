@@ -2,6 +2,7 @@ import { searchHanja } from "@/lib/search";
 import { isHangulWord } from "@/lib/hanja";
 import type { SearchReason } from "@/types/search";
 import { ResultCard } from "@/components/result-card";
+import { RecentSearchRecorder } from "@/components/recent-search-recorder";
 
 interface SearchResultsProps {
   searchTerm: string;
@@ -14,12 +15,17 @@ export async function SearchResults({ searchTerm }: SearchResultsProps) {
 
   const { results, reason } = await searchHanja(searchTerm);
   if (results.length > 0) {
-    return results.map((result, index) => (
-      <ResultCard
-        key={`${result.word}-${result.sup_no}-${index}`}
-        result={result}
-      />
-    ));
+    return (
+      <>
+        <RecentSearchRecorder term={searchTerm} />
+        {results.map((result, index) => (
+          <ResultCard
+            key={`${result.word}-${result.sup_no}-${index}`}
+            result={result}
+          />
+        ))}
+      </>
+    );
   }
 
   return (
