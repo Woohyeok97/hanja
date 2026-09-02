@@ -3,7 +3,7 @@ import type { SearchResponse, SearchResult } from "@/types/search";
 
 const trim = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
-export async function searchHanja(query: string): Promise<SearchResponse> {
+export async function searchHanja(searchTerm: string): Promise<SearchResponse> {
   const key = process.env.STDICT_API_KEY;
   if (!key) {
     console.error("[search] STDICT_API_KEY missing");
@@ -11,7 +11,7 @@ export async function searchHanja(query: string): Promise<SearchResponse> {
   }
 
   // stdict API 자체의 파라미터 이름은 "q"로 고정되어 있어(외부 계약) 그대로 둔다.
-  const url = `https://stdict.korean.go.kr/api/search.do?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&req_type=json`;
+  const url = `https://stdict.korean.go.kr/api/search.do?key=${encodeURIComponent(key)}&q=${encodeURIComponent(searchTerm)}&req_type=json`;
 
   let text: string;
   try {
